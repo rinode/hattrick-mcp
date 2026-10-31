@@ -60,11 +60,36 @@ Add to `claude_desktop_config.json`:
 
 Claude Code: `claude mcp add hattrick -- /absolute/path/to/hattrick-mcp serve`
 
+## Docker
+
+Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`, then log in once. The access token is stored in the `credentials` volume.
+
+```sh
+docker compose run --rm hattrick-mcp login
+```
+
+Connect to Claude with `-T`, so stdin carries the MCP protocol without a TTY:
+
+```json
+{
+  "mcpServers": {
+    "hattrick": {
+      "command": "docker",
+      "args": ["compose", "-f", "/absolute/path/to/hattrick-mcp/compose.yaml", "run", "--rm", "-T", "hattrick-mcp"]
+    }
+  }
+}
+```
+
+Pushing a `v*` tag publishes `ghcr.io/rinode/hattrick-mcp` for amd64 and arm64. The image contains no consumer key.
+
 ## Test
 
 ```sh
 go test ./...
 ```
+
+Or in Docker, as CI runs it: `docker compose run --rm test`.
 
 ## License
 

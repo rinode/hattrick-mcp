@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose run --rm test
+      - run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - run: docker buildx create --use
+      - name: Push multi-arch image
+        run: |
+          TAG=${GITHUB_REF_NAME#v} docker buildx bake -f compose.yaml hattrick-mcp --push \
+            --set "hattrick-mcp.platform=linux/amd64" \
+            --set "hattrick-mcp.platform=linux/arm64" \
+            --set "hattrick-mcp.tags=ghcr.io/rinode/hattrick-mcp:${GITHUB_REF_NAME#v}" \
+            --set "hattrick-mcp.tags=ghcr.io/rinode/hattrick-mcp:latest"
