@@ -41,17 +41,21 @@ func TestToolsList(t *testing.T) {
 
 func TestNotLoggedIn(t *testing.T) {
 	cs := connect(t)
-	for name, want := range map[string]string{
-		"get_team":       "not logged in",
-		"complete_login": "no login in progress",
+	for _, c := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"get_team", map[string]any{}, "not logged in"},
+		{"complete_login", map[string]any{"code": "x"}, "no login in progress"},
 	} {
-		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: map[string]any{"code": "x"}})
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.name, Arguments: c.args})
 		if err != nil {
 			t.Fatal(err)
 		}
 		got := res.Content[0].(*mcp.TextContent).Text
-		if !res.IsError || !strings.Contains(got, want) {
-			t.Errorf("%s: got %q, want an error containing %q", name, got, want)
+		if !res.IsError || !strings.Contains(got, c.want) {
+			t.Errorf("%s: got %q, want an error containing %q", c.name, got, c.want)
 		}
 	}
 }

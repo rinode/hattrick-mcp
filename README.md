@@ -52,8 +52,8 @@ Omit an ID to use your own team. Results are cached for 5 minutes.
 Docker is only needed for development. Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`.
 
 ```sh
-docker compose run --rm test           # gofmt, tidy, vet and tests, as CI runs them
-docker compose run --rm hattrick-mcp   # the server over stdio
+docker compose run --rm --build test   # gofmt, tidy, vet and tests, as CI runs them
+docker compose run --rm --build hattrick-mcp  # the server over stdio
 ```
 
 With Go 1.26 or later: `go test ./...` and `go build .`.
