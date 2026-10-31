@@ -1,0 +1,44 @@
+{
+  "name": "hattrick-mcp",
+  "description": "Read-only Hattrick CHPP data: your team, players, matches, training, economy and transfers",
+  "author": {
+    "name": "rinode",
+    "email": "mail@vanmarino.nl"
+  },
+  "repository": "https://github.com/rinode/hattrick-mcp",
+  "license": "Apache-2.0",
+  "keywords": ["hattrick", "chpp", "football-manager"],
+  "dependencies": ["hattrick-context-pack"],
+  "userConfig": {
+    "consumer_key": {
+      "type": "string",
+      "title": "CHPP consumer key",
+      "description": "Consumer key of your approved CHPP product",
+      "required": true,
+      "sensitive": true
+    },
+    "consumer_secret": {
+      "type": "string",
+      "title": "CHPP consumer secret",
+      "description": "Consumer secret of your approved CHPP product",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "mcpServers": {
+    "hattrick": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-e", "HATTRICK_CONSUMER_KEY",
+        "-e", "HATTRICK_CONSUMER_SECRET",
+        "-v", "hattrick-mcp-credentials:/config",
+        "ghcr.io/rinode/hattrick-mcp:latest"
+      ],
+      "env": {
+        "HATTRICK_CONSUMER_KEY": "${user_config.consumer_key}",
+        "HATTRICK_CONSUMER_SECRET": "${user_config.consumer_secret}"
+      }
+    }
+  }
+}

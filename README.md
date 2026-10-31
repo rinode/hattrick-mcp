@@ -4,6 +4,21 @@ An [MCP](https://modelcontextprotocol.io) server that gives AI assistants read-o
 
 It runs locally over stdio and is built on [lucianoq/hattrick](https://github.com/lucianoq/hattrick). Pair it with [hattrick-context-pack](https://github.com/rmagasi/hattrick-context-pack) so the assistant knows both your data and the game rules.
 
+## Install as a Claude Code plugin
+
+This repo is a plugin marketplace. Installing `hattrick-mcp` also installs `hattrick-context-pack`, fetched from its upstream repo, so the rules stay current without a copy here. The server runs from the Docker image.
+
+```sh
+claude plugin marketplace add rinode/hattrick-mcp
+claude plugin install hattrick-mcp@hattrick-mcp
+```
+
+Claude Code asks for your CHPP consumer key and secret and keeps them in secure storage. Log in once:
+
+```sh
+docker run --rm -it -e HATTRICK_CONSUMER_KEY -e HATTRICK_CONSUMER_SECRET -v hattrick-mcp-credentials:/config ghcr.io/rinode/hattrick-mcp login
+```
+
 ## Tools
 
 | Tool | Data |
@@ -62,7 +77,7 @@ Claude Code: `claude mcp add hattrick -- /absolute/path/to/hattrick-mcp serve`
 
 ## Docker
 
-Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`, then log in once. The access token is stored in the `credentials` volume.
+Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`, then log in once. The access token is stored in the `hattrick-mcp-credentials` volume, which the plugin shares.
 
 ```sh
 docker compose run --rm hattrick-mcp login

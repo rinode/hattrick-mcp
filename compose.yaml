@@ -20,3 +20,4 @@ services:
 
 volumes:
   credentials:
+    name: hattrick-mcp-credentials
