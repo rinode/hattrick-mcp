@@ -1,3 +1,7 @@
 /hattrick-mcp
 credentials.json
 .env
+/mcpb/server/hattrick-mcp
+/mcpb/server/hattrick-mcp.exe
+/mcpb/server/hattrick-mcp-linux-*
+*.mcpb

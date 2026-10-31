@@ -1,0 +1,6 @@
+#!/bin/sh
+case $(uname -m) in
+aarch64 | arm64) arch=arm64 ;;
+*) arch=amd64 ;;
+esac
+exec "$(dirname "$0")/hattrick-mcp-linux-$arch" "$@"

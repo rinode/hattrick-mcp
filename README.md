@@ -6,18 +6,24 @@ It runs locally over stdio and is built on [lucianoq/hattrick](https://github.co
 
 ## Install as a Claude Code plugin
 
-This repo is a plugin marketplace. Installing `hattrick-mcp` also installs `hattrick-context-pack`, fetched from its upstream repo, so the rules stay current without a copy here. The server runs from the Docker image.
+This repo is a plugin marketplace. Installing `hattrick-mcp` also installs `hattrick-context-pack`, fetched from its upstream repo, so the rules stay current without a copy here. The server is a native binary from the latest release; no runtime is needed.
 
 ```sh
 claude plugin marketplace add rinode/hattrick-mcp
 claude plugin install hattrick-mcp@hattrick-mcp
 ```
 
-Claude Code asks for your CHPP consumer key and secret and keeps them in secure storage. Log in once:
+Then open `/plugin`, select `hattrick-mcp` on the Installed tab, choose Configure, and enter your CHPP consumer key and secret. Requires a recent Claude Code; 2.1.193 does not start bundled servers.
 
-```sh
-docker run --rm -it -e HATTRICK_CONSUMER_KEY -e HATTRICK_CONSUMER_SECRET -v hattrick-mcp-credentials:/config ghcr.io/rinode/hattrick-mcp login
-```
+## Install in Claude Desktop
+
+Download `hattrick-mcp.mcpb` from the [latest release](https://github.com/rinode/hattrick-mcp/releases/latest), open it, and enter your CHPP consumer key and secret.
+
+## Log in
+
+Ask Claude to log you in to Hattrick. It calls `login`, gives you a URL where you grant access, and finishes with the code you get back. The access token is stored in your user config directory (`~/Library/Application Support/hattrick-mcp/credentials.json` on macOS).
+
+The consumer key comes from an approved [CHPP product license](https://www.hattrick.org/Community/CHPP/). Never commit it.
 
 ## Tools
 
@@ -37,74 +43,22 @@ docker run --rm -it -e HATTRICK_CONSUMER_KEY -e HATTRICK_CONSUMER_SECRET -v hatt
 | `get_arena` | Arena |
 | `get_youth_players` | Youth academy |
 | `search_transfers` | Transfer market search |
+| `login`, `complete_login` | Log in to Hattrick |
 
 Omit an ID to use your own team. Results are cached for 5 minutes.
 
-## Build
+## Development
 
-Requires Go 1.26 or later.
-
-```sh
-go build -ldflags "-X main.consumerKey=$HATTRICK_CONSUMER_KEY -X main.consumerSecret=$HATTRICK_CONSUMER_SECRET" -o hattrick-mcp .
-```
-
-Without `-ldflags`, set `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` at runtime. The consumer key comes from an approved [CHPP product license](https://www.hattrick.org/Community/CHPP/). Never commit it.
-
-## Log in
+Docker is only needed for development. Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`.
 
 ```sh
-./hattrick-mcp login
+docker compose run --rm test           # gofmt, tidy, vet and tests, as CI runs them
+docker compose run --rm hattrick-mcp   # the server over stdio
 ```
 
-Open the printed URL, grant access and paste the code. The access token is stored in your user config directory (`~/Library/Application Support/hattrick-mcp/credentials.json` on macOS).
+With Go 1.26 or later: `go test ./...` and `go build .`.
 
-## Connect to Claude
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "hattrick": {
-      "command": "/absolute/path/to/hattrick-mcp",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Claude Code: `claude mcp add hattrick -- /absolute/path/to/hattrick-mcp serve`
-
-## Docker
-
-Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`, then log in once. The access token is stored in the `hattrick-mcp-credentials` volume, which the plugin shares.
-
-```sh
-docker compose run --rm hattrick-mcp login
-```
-
-Connect to Claude with `-T`, so stdin carries the MCP protocol without a TTY:
-
-```json
-{
-  "mcpServers": {
-    "hattrick": {
-      "command": "docker",
-      "args": ["compose", "-f", "/absolute/path/to/hattrick-mcp/compose.yaml", "run", "--rm", "-T", "hattrick-mcp"]
-    }
-  }
-}
-```
-
-Pushing a `v*` tag publishes `ghcr.io/rinode/hattrick-mcp` for amd64 and arm64. The image contains no consumer key.
-
-## Test
-
-```sh
-go test ./...
-```
-
-Or in Docker, as CI runs it: `docker compose run --rm test`.
+Pushing a `v*` tag builds the binaries, packs `hattrick-mcp.mcpb` and attaches it to a GitHub release, which the plugin installs from.
 
 ## License
 

@@ -1,10 +1,6 @@
 services:
   hattrick-mcp:
-    image: ghcr.io/rinode/hattrick-mcp:${TAG:-latest}
-    build:
-      context: .
-      args:
-        VERSION: ${TAG:-dev}
+    build: .
     environment:
       - HATTRICK_CONSUMER_KEY
       - HATTRICK_CONSUMER_SECRET
@@ -16,8 +12,7 @@ services:
     build:
       context: .
       target: build
-    command: sh -c "go mod tidy -diff && go vet ./... && go test ./..."
+    command: sh -c 'test -z "$$(gofmt -l .)" && go mod tidy -diff && go vet ./... && go test ./...'
 
 volumes:
   credentials:
-    name: hattrick-mcp-credentials
