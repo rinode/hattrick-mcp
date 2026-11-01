@@ -20,4 +20,4 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 )
 
-replace github.com/lucianoq/hattrick => github.com/rinode/hattrick v0.0.0-20261101175841-f8b70dfdb029
+replace github.com/lucianoq/hattrick => github.com/rinode/hattrick v0.0.0-20261101192436-611889be41ca

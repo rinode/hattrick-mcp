@@ -23,6 +23,11 @@ type playerArgs struct {
 	PlayerID id.Player `json:"player_id" jsonschema:"player ID"`
 }
 
+type playersArgs struct {
+	TeamID  id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own team"`
+	OrderBy string  `json:"order_by,omitempty" jsonschema:"sort order, e.g. age, salary, skill-specific; omit for default"`
+}
+
 type matchArgs struct {
 	MatchID      id.Match          `json:"match_id" jsonschema:"match ID"`
 	SourceSystem chpp.SourceSystem `json:"source_system,omitempty" jsonschema:"hattrick (default), youth or htointegrated"`
@@ -54,10 +59,11 @@ type matchesArgs struct {
 }
 
 type archiveArgs struct {
-	TeamID id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own team"`
-	Start  string  `json:"start,omitempty" jsonschema:"start date YYYY-MM-DD (use with end)"`
-	End    string  `json:"end,omitempty" jsonschema:"end date YYYY-MM-DD (use with start)"`
-	Season uint    `json:"season,omitempty" jsonschema:"season number instead of start/end"`
+	TeamID     id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own team"`
+	Start      string  `json:"start,omitempty" jsonschema:"start date YYYY-MM-DD (use with end)"`
+	End        string  `json:"end,omitempty" jsonschema:"end date YYYY-MM-DD (use with start)"`
+	Season     uint    `json:"season,omitempty" jsonschema:"season number instead of start/end"`
+	IncludeHTO bool    `json:"include_hto,omitempty" jsonschema:"include Hattrick International tournament matches (date range only)"`
 }
 
 type seriesArgs struct {
@@ -102,14 +108,30 @@ type transfersTeamArgs struct {
 	PageIndex uint    `json:"page_index,omitempty" jsonschema:"result page, starting at 0"`
 }
 
+type skillFilterArg struct {
+	SkillID chpp.SkillID    `json:"skill_id" jsonschema:"1 keeper, 2 stamina, 3 set pieces, 4 defending, 5 scoring, 6 winger, 7 passing, 8 playmaking, 9 trainer, 10 leadership, 11 experience"`
+	Min     chpp.SkillLevel `json:"min" jsonschema:"minimum level (0-20)"`
+	Max     chpp.SkillLevel `json:"max" jsonschema:"maximum level (0-20), within 4 of min"`
+}
+
 type transferArgs struct {
-	AgeMin    uint            `json:"age_min" jsonschema:"minimum age in years (17 or more)"`
-	AgeMax    uint            `json:"age_max" jsonschema:"maximum age in years"`
-	SkillID   chpp.SkillID    `json:"skill_id" jsonschema:"1 keeper, 2 stamina, 3 set pieces, 4 defending, 5 scoring, 6 winger, 7 passing, 8 playmaking, 9 trainer, 10 leadership, 11 experience"`
-	SkillMin  chpp.SkillLevel `json:"skill_min" jsonschema:"minimum level of skill_id (0-20)"`
-	SkillMax  chpp.SkillLevel `json:"skill_max" jsonschema:"maximum level of skill_id (0-20)"`
-	PriceMax  chpp.Money      `json:"price_max,omitempty" jsonschema:"maximum current price in SEK"`
-	PageIndex uint            `json:"page_index,omitempty" jsonschema:"result page, starting at 0"`
+	AgeMin   uint            `json:"age_min" jsonschema:"minimum age in years (17 or more)"`
+	AgeMax   uint            `json:"age_max" jsonschema:"maximum age in years"`
+	SkillID  chpp.SkillID    `json:"skill_id" jsonschema:"primary skill: 1 keeper, 2 stamina, 3 set pieces, 4 defending, 5 scoring, 6 winger, 7 passing, 8 playmaking, 9 trainer, 10 leadership, 11 experience"`
+	SkillMin chpp.SkillLevel `json:"skill_min" jsonschema:"minimum level of skill_id (0-20)"`
+	SkillMax chpp.SkillLevel `json:"skill_max" jsonschema:"maximum level of skill_id (0-20), within 4 of skill_min"`
+
+	AgeDaysMin       uint             `json:"age_days_min,omitempty" jsonschema:"minimum age days (0-111), combined with age_min"`
+	AgeDaysMax       uint             `json:"age_days_max,omitempty" jsonschema:"maximum age days (0-111), combined with age_max"`
+	AdditionalSkills []skillFilterArg `json:"additional_skills,omitempty" jsonschema:"up to 3 further skill filters beyond the primary one"`
+	Specialty        chpp.SpecialtyID `json:"specialty,omitempty" jsonschema:"0 none, 1 technical, 2 quick, 3 powerful, 4 unpredictable, 5 head, 6 resilient, 8 support"`
+	NativeCountryID  id.Country       `json:"native_country_id,omitempty" jsonschema:"restrict to players native to this country"`
+	TSIMin           uint             `json:"tsi_min,omitempty" jsonschema:"minimum TSI"`
+	TSIMax           uint             `json:"tsi_max,omitempty" jsonschema:"maximum TSI"`
+	PriceMin         chpp.Money       `json:"price_min,omitempty" jsonschema:"minimum current price in SEK"`
+	PriceMax         chpp.Money       `json:"price_max,omitempty" jsonschema:"maximum current price in SEK"`
+	PageSize         uint             `json:"page_size,omitempty" jsonschema:"results per page (default 25)"`
+	PageIndex        uint             `json:"page_index,omitempty" jsonschema:"result page, starting at 0"`
 }
 
 type youthPlayersArgs struct {
@@ -304,9 +326,14 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 
 	// Players.
 	add(s, acct, c, "get_players", "Senior squad list with age, form, stamina, skills (own team), TSI, salary, specialty, injuries and cards.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
+		func(ht hattrick.Client, a playersArgs) (any, error) {
+			switch {
+			case a.TeamID == 0 && a.OrderBy != "":
+				return ht.GetMyPlayersOrderedBy(a.OrderBy)
+			case a.TeamID == 0:
 				return ht.GetMyPlayers()
+			case a.OrderBy != "":
+				return ht.GetPlayersOrderedBy(a.TeamID, a.OrderBy)
 			}
 			return ht.GetPlayers(a.TeamID)
 		})
@@ -412,7 +439,12 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 			if err != nil {
 				return nil, err
 			}
-			if a.TeamID == 0 {
+			switch {
+			case a.IncludeHTO && a.TeamID == 0:
+				return ht.GetMyMatchesArchiveIncludeHTO(start, end)
+			case a.IncludeHTO:
+				return ht.GetMatchesArchiveIncludeHTO(a.TeamID, start, end)
+			case a.TeamID == 0:
 				return ht.GetMyMatchesArchive(start, end)
 			}
 			return ht.GetMatchesArchive(a.TeamID, start, end)
@@ -559,10 +591,26 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetMyArenaSupporterStats() })
 
 	// Transfers.
-	add(s, acct, c, "search_transfers", "Search the transfer market by age and one skill range.",
+	add(s, acct, c, "search_transfers", "Search the transfer market by age, a primary skill range and optional filters.",
 		func(ht hattrick.Client, a transferArgs) (any, error) {
+			extra := make([]api.TransferSearchSkillFilter, 0, len(a.AdditionalSkills))
+			for _, f := range a.AdditionalSkills {
+				extra = append(extra, api.TransferSearchSkillFilter{SkillType: f.SkillID, Min: f.Min, Max: f.Max})
+			}
 			return ht.GetTransferSearch(a.AgeMin, a.AgeMax, a.SkillID, a.SkillMin, a.SkillMax,
-				api.TransferSearchFilters{PriceMax: a.PriceMax, PageIndex: a.PageIndex})
+				api.TransferSearchFilters{
+					AgeDaysMin:       a.AgeDaysMin,
+					AgeDaysMax:       a.AgeDaysMax,
+					AdditionalSkills: extra,
+					Specialty:        a.Specialty,
+					NativeCountryID:  a.NativeCountryID,
+					TSIMin:           a.TSIMin,
+					TSIMax:           a.TSIMax,
+					PriceMin:         a.PriceMin,
+					PriceMax:         a.PriceMax,
+					PageSize:         a.PageSize,
+					PageIndex:        a.PageIndex,
+				})
 		})
 	add(s, acct, c, "get_current_bids", "Players you are currently bidding on.",
 		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetCurrentBids() })
@@ -756,6 +804,29 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 		func(ht hattrick.Client, a challengeableArgs) (any, error) {
 			return ht.IsChallengeable(a.Weekend, a.TeamID)
 		})
+	add(s, acct, c, "are_challengeable", "Whether each of several teams can be challenged to a friendly.",
+		func(ht hattrick.Client, a areChallengeableArgs) (any, error) {
+			return ht.AreChallengeable(a.Weekend, a.TeamIDs...)
+		})
+	add(s, acct, c, "get_all_live_events", "All live events for the matches on your live list.",
+		func(ht hattrick.Client, a liveEventsArgs) (any, error) {
+			return ht.GetAllLiveEvents(a.IncludeStartingLineup, a.UseLiveEventsAndTexts)
+		})
+	add(s, acct, c, "get_new_live_events", "Live events since the given last-shown indexes.",
+		func(ht hattrick.Client, a liveEventsArgs) (any, error) {
+			return ht.GetNewLiveEvents(a.LastShownIndexes, a.IncludeStartingLineup, a.UseLiveEventsAndTexts)
+		})
+}
+
+type areChallengeableArgs struct {
+	Weekend bool      `json:"weekend,omitempty" jsonschema:"true for the weekend friendly slot"`
+	TeamIDs []id.Team `json:"team_ids" jsonschema:"team IDs to check"`
+}
+
+type liveEventsArgs struct {
+	LastShownIndexes      string `json:"last_shown_indexes,omitempty" jsonschema:"opaque cursor from a previous call (get_new_live_events only)"`
+	IncludeStartingLineup bool   `json:"include_starting_lineup,omitempty" jsonschema:"include the starting lineup"`
+	UseLiveEventsAndTexts bool   `json:"use_live_events_and_texts,omitempty" jsonschema:"include live events and texts"`
 }
 
 type weekendArgs struct {

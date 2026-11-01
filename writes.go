@@ -117,11 +117,35 @@ type setLineupArgs struct {
 	BenchWinger          id.Player `json:"bench_winger,omitempty" jsonschema:"substitute winger"`
 	BenchExtra           id.Player `json:"bench_extra,omitempty" jsonschema:"extra substitute"`
 
+	BackupGoalkeeper      id.Player `json:"backup_goalkeeper,omitempty" jsonschema:"backup substitute goalkeeper"`
+	BackupCentralDefender id.Player `json:"backup_central_defender,omitempty" jsonschema:"backup substitute central defender"`
+	BackupWingBack        id.Player `json:"backup_wing_back,omitempty" jsonschema:"backup substitute wing back"`
+	BackupInnerMid        id.Player `json:"backup_inner_mid,omitempty" jsonschema:"backup substitute inner midfielder"`
+	BackupForward         id.Player `json:"backup_forward,omitempty" jsonschema:"backup substitute forward"`
+	BackupWinger          id.Player `json:"backup_winger,omitempty" jsonschema:"backup substitute winger"`
+	BackupExtra           id.Player `json:"backup_extra,omitempty" jsonschema:"backup extra substitute"`
+
 	Captain        id.Player              `json:"captain,omitempty" jsonschema:"captain player ID"`
 	SetPiecesTaker id.Player              `json:"set_pieces_taker,omitempty" jsonschema:"set-pieces taker player ID"`
 	PenaltyTakers  []id.Player            `json:"penalty_takers,omitempty" jsonschema:"ordered player IDs who take penalties, best first (up to 11)"`
 	Tactic         chpp.MatchTacticType   `json:"tactic,omitempty" jsonschema:"0 normal, 1 pressing, 2 counter-attacks, 3 attack in the middle, 4 attack in wings, 7 play creatively, 8 long shots"`
 	Attitude       chpp.MatchTeamAttitude `json:"attitude,omitempty" jsonschema:"-1 play it cool, 0 normal, 1 match of the season"`
+	CoachModifier  chpp.CoachModifier     `json:"coach_modifier,omitempty" jsonschema:"team attitude on the defensive(-10)..offensive(10) axis, 0 neutral"`
+	ManMarker      id.Player              `json:"man_marker,omitempty" jsonschema:"your player who man-marks an opponent"`
+	ManMarking     id.Player              `json:"man_marking,omitempty" jsonschema:"the opponent player being man-marked"`
+
+	Substitutions []subArg `json:"substitutions,omitempty" jsonschema:"up to 5 orders (substitutions, behaviour changes, position swaps)"`
+}
+
+type subArg struct {
+	PlayerIn  id.Player `json:"player_in" jsonschema:"player coming on (or the affected player for a behaviour/position change)"`
+	PlayerOut id.Player `json:"player_out,omitempty" jsonschema:"player going off; equal to player_in for a behaviour or position change"`
+	OrderType int       `json:"order_type,omitempty" jsonschema:"1 substitution or behaviour change (default), 3 player swap"`
+	Minute    int       `json:"minute,omitempty" jsonschema:"trigger minute: -1 anytime, 46 half-time, 91 before extra time, or a specific minute"`
+	Position  int       `json:"position,omitempty" jsonschema:"new position 0-13 (GK..left forward), -1 no change"`
+	Behaviour int       `json:"behaviour,omitempty" jsonschema:"new behaviour: -1 no change, 0 normal, 1 offensive, 2 defensive, 3 towards middle, 4 towards wing, 5 extra forward, 6 extra inner mid, 7 extra defender"`
+	Card      int       `json:"card,omitempty" jsonschema:"red-card condition: -1 ignore, 1 my player, 2 opponent, 11-15 my CD/mid/fwd/WB/winger, 21-25 opponent variants"`
+	Standing  int       `json:"standing,omitempty" jsonschema:"score condition: -1 any, 0 tied, 1 lead, 2 down, 3 lead>1, 4 down>1, 5 not down, 6 not lead, 7 lead>2, 8 down>2, 9 not tied"`
 }
 
 func buildLineup(a setLineupArgs) (string, error) {
@@ -145,21 +169,49 @@ func buildLineup(a setLineupArgs) (string, error) {
 		CentralForward:         pb(a.CentralForward, "central_forward"),
 		LeftForward:            pb(a.LeftForward, "left_forward"),
 	}
-	bench := chpp.LineupBenchPlayers{Primary: chpp.LineupBenchSlots{
-		Goalkeeper:      a.BenchGoalkeeper,
-		CentralDefender: a.BenchCentralDefender,
-		WingBack:        a.BenchWingBack,
-		InnerMidfielder: a.BenchInnerMid,
-		Forward:         a.BenchForward,
-		Winger:          a.BenchWinger,
-		Extra:           a.BenchExtra,
-	}}
+	bench := chpp.LineupBenchPlayers{
+		Primary: chpp.LineupBenchSlots{
+			Goalkeeper:      a.BenchGoalkeeper,
+			CentralDefender: a.BenchCentralDefender,
+			WingBack:        a.BenchWingBack,
+			InnerMidfielder: a.BenchInnerMid,
+			Forward:         a.BenchForward,
+			Winger:          a.BenchWinger,
+			Extra:           a.BenchExtra,
+		},
+		Backup: chpp.LineupBenchSlots{
+			Goalkeeper:      a.BackupGoalkeeper,
+			CentralDefender: a.BackupCentralDefender,
+			WingBack:        a.BackupWingBack,
+			InnerMidfielder: a.BackupInnerMid,
+			Forward:         a.BackupForward,
+			Winger:          a.BackupWinger,
+			Extra:           a.BackupExtra,
+		},
+	}
 	var kickers [11]id.Player
 	for i := 0; i < len(a.PenaltyTakers) && i < len(kickers); i++ {
 		kickers[i] = a.PenaltyTakers[i]
 	}
+	subs := make([]chpp.LineupSubstitutionOrder, 0, len(a.Substitutions))
+	for _, s := range a.Substitutions {
+		ot := chpp.MatchOrderType(s.OrderType)
+		if s.OrderType == 0 {
+			ot = chpp.MatchOrderTypeSubOrBehaviouralChange
+		}
+		subs = append(subs, chpp.LineupSubstitutionOrder{
+			PlayerIn:  s.PlayerIn,
+			PlayerOut: s.PlayerOut,
+			OrderType: ot,
+			Minute:    chpp.LineupMatchMinuteCriteria(s.Minute),
+			Position:  chpp.LineupPosition(s.Position),
+			Behaviour: chpp.MatchBehaviourID(s.Behaviour),
+			Card:      chpp.LineupRedCardCriteria(s.Card),
+			Standing:  chpp.LineupGoalDiffCriteria(s.Standing),
+		})
+	}
 	return chpp.NewLineup(fs, bench, kickers, a.Captain, a.SetPiecesTaker,
-		a.Tactic, a.Attitude, chpp.CoachModifier(0), 0, 0, nil)
+		a.Tactic, a.Attitude, a.CoachModifier, a.ManMarker, a.ManMarking, subs)
 }
 
 func registerWrites(s *mcp.Server, acct *account) {

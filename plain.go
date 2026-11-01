@@ -30,6 +30,11 @@ func convert(v reflect.Value) any {
 		}
 		return convert(v.Elem())
 	}
+	// Keep booleans even when false: a false flag is real information, unlike
+	// an empty string or a zero number.
+	if v.Kind() == reflect.Bool {
+		return v.Bool()
+	}
 	if v.IsZero() {
 		return nil
 	}
