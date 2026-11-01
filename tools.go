@@ -114,6 +114,7 @@ var chppErrorHints = map[string]string{
 	"54": "no youth team yet — create one in Hattrick first",
 	"58": "no youth league yet",
 	"70": "not logged in or the access token was revoked — run login again",
+	"71": "bid rejected — your raise is below the minimum, or you have too many active max-bids (Hattrick caps simultaneous auto-bids; win or clear some first)",
 	"99": "not authorised, or required parameters are missing (you may need to own or belong to this)",
 }
 

@@ -255,7 +255,7 @@ func registerWrites(s *mcp.Server, acct *account) {
 			changed, tt, err := ht.SetTraining(a.TeamID, a.TrainingType, a.Level, a.StaminaLevel)
 			return map[string]any{"changed": changed, "training": tt}, err
 		})
-	addWrite(s, acct, "place_bid", "Place a bid on a player on the transfer market. Spends real in-game money and is irreversible.",
+	addWrite(s, acct, "place_bid", "Place a bid on a transfer-listed player. Spends real in-game money and is irreversible. max_bid is a proxy ceiling that Hattrick's end-of-auction mechanics can exceed, so it is not a hard spend limit; omit it for a one-off bid. Hattrick also caps how many max-bids you can hold at once.",
 		func(ht hattrick.Client, a placeBidArgs) (any, error) {
 			max := a.MaxBid
 			if max == 0 {
