@@ -7,6 +7,23 @@ services:
     volumes:
       - credentials:/config
 
+  # Host it as a remote MCP over HTTP, behind a bearer token.
+  # Log in once first (see the README) so the credentials volume holds a token.
+  hattrick-mcp-http:
+    profiles: [host]
+    build: .
+    command: ["http"]
+    environment:
+      - HATTRICK_CONSUMER_KEY
+      - HATTRICK_CONSUMER_SECRET
+      - HATTRICK_MCP_TOKEN
+      - HATTRICK_MCP_ADDR
+    ports:
+      - "8080:8080"
+    volumes:
+      - credentials:/config
+    restart: unless-stopped
+
   test:
     profiles: [test]
     build:

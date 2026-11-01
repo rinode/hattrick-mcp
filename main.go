@@ -3,14 +3,17 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	_ "time/tzdata" // the hattrick library needs Europe/Stockholm, which Windows and minimal Linux lack
 
 	"github.com/lucianoq/hattrick"
@@ -56,14 +59,56 @@ func main() {
 	switch cmd {
 	case "serve":
 		err = serve(path)
+	case "http":
+		err = serveHTTP(path)
 	case "version":
 		fmt.Println(version)
 	default:
-		err = fmt.Errorf("unknown command %q (use serve or version)", cmd)
+		err = fmt.Errorf("unknown command %q (use serve, http or version)", cmd)
 	}
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// serveHTTP runs the MCP server over Streamable HTTP for hosting, behind a
+// bearer token. Put TLS in front (a reverse proxy) for anything public.
+func serveHTTP(path string) error {
+	token := os.Getenv("HATTRICK_MCP_TOKEN")
+	if token == "" {
+		return errors.New("set HATTRICK_MCP_TOKEN to a secret value to run the HTTP server")
+	}
+	addr := os.Getenv("HATTRICK_MCP_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	a, err := newAccount(path)
+	if err != nil {
+		return err
+	}
+
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return newServer(a) }, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.Handle("/", bearerAuth(token, handler))
+
+	log.Printf("hattrick-mcp HTTP server listening on %s", addr)
+	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	return srv.ListenAndServe()
+}
+
+// bearerAuth rejects any request without the exact "Bearer <token>" header.
+func bearerAuth(token string, next http.Handler) http.Handler {
+	want := []byte("Bearer " + token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(got, want) != 1 {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func credentialsPath() (string, error) {

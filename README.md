@@ -56,6 +56,23 @@ These change the live account. Each is marked destructive and does nothing until
 | `challenge`, `accept_challenge`, `decline_challenge`, `withdraw_challenge` | Arrange friendlies |
 | `add_live_match`, `delete_live_match`, `clear_live_matches` | Manage the live list |
 
+## Host it as a remote MCP (HTTP)
+
+The server can run over Streamable HTTP so it can be reached as a remote MCP (e.g. from claude.ai or mobile), not just as a local stdio process. It's guarded by a bearer token.
+
+```sh
+# 1. Log in once so the credentials volume holds an access token.
+docker run --rm -it -e HATTRICK_CONSUMER_KEY -e HATTRICK_CONSUMER_SECRET \
+  -v hattrick-mcp-credentials:/config ghcr.io/rinode/hattrick-mcp login
+
+# 2. Run the HTTP server (set a strong token).
+HATTRICK_MCP_TOKEN=$(openssl rand -hex 32) docker compose --profile host up hattrick-mcp-http
+```
+
+The server listens on `:8080` (`HATTRICK_MCP_ADDR` to change it): `/` is the MCP endpoint, `GET /healthz` is an unauthenticated health check. Every MCP request must send `Authorization: Bearer $HATTRICK_MCP_TOKEN`. It serves plain HTTP — put a TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in front for anything public, and keep the token secret.
+
+Single-user only: it serves one manager's data (the logged-in token), so give the endpoint and token only to yourself.
+
 ## Development
 
 Docker is only needed for development. Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`.
