@@ -608,7 +608,7 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetMyArenaSupporterStats() })
 
 	// Transfers.
-	add(s, acct, c, "search_transfers", "Search the transfer market by age, a primary skill range and optional filters.",
+	add(s, acct, c, "search_transfers", "Search the transfer market by age, a primary skill range and optional filters. Keep the age span small (a few years) and skill_max within 4 of skill_min; CHPP rejects wide ranges.",
 		func(ht hattrick.Client, a transferArgs) (any, error) {
 			extra := make([]api.TransferSearchSkillFilter, 0, len(a.AdditionalSkills))
 			for _, f := range a.AdditionalSkills {
