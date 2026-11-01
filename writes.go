@@ -119,6 +119,7 @@ type setLineupArgs struct {
 
 	Captain        id.Player              `json:"captain,omitempty" jsonschema:"captain player ID"`
 	SetPiecesTaker id.Player              `json:"set_pieces_taker,omitempty" jsonschema:"set-pieces taker player ID"`
+	PenaltyTakers  []id.Player            `json:"penalty_takers,omitempty" jsonschema:"ordered player IDs who take penalties, best first (up to 11)"`
 	Tactic         chpp.MatchTacticType   `json:"tactic,omitempty" jsonschema:"0 normal, 1 pressing, 2 counter-attacks, 3 attack in the middle, 4 attack in wings, 7 play creatively, 8 long shots"`
 	Attitude       chpp.MatchTeamAttitude `json:"attitude,omitempty" jsonschema:"-1 play it cool, 0 normal, 1 match of the season"`
 }
@@ -153,7 +154,11 @@ func buildLineup(a setLineupArgs) (string, error) {
 		Winger:          a.BenchWinger,
 		Extra:           a.BenchExtra,
 	}}
-	return chpp.NewLineup(fs, bench, [11]id.Player{}, a.Captain, a.SetPiecesTaker,
+	var kickers [11]id.Player
+	for i := 0; i < len(a.PenaltyTakers) && i < len(kickers); i++ {
+		kickers[i] = a.PenaltyTakers[i]
+	}
+	return chpp.NewLineup(fs, bench, kickers, a.Captain, a.SetPiecesTaker,
 		a.Tactic, a.Attitude, chpp.CoachModifier(0), 0, 0, nil)
 }
 
