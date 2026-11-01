@@ -1,6 +1,6 @@
 # hattrick-mcp
 
-An [MCP](https://modelcontextprotocol.io) server that gives AI assistants read-only access to your [Hattrick](https://www.hattrick.org) team through the official CHPP API.
+An [MCP](https://modelcontextprotocol.io) server that gives AI assistants access to your [Hattrick](https://www.hattrick.org) team through the official CHPP API: the full read surface, plus guarded write actions (match orders, training, transfer bids, youth, challenges).
 
 It runs locally over stdio and is built on [lucianoq/hattrick](https://github.com/lucianoq/hattrick). Pair it with [hattrick-context-pack](https://github.com/rmagasi/hattrick-context-pack) so the assistant knows both your data and the game rules.
 
@@ -27,25 +27,32 @@ The consumer key comes from an approved [CHPP product license](https://www.hattr
 
 ## Tools
 
-| Tool | Data |
-|---|---|
-| `get_team` | Team details, spirit, confidence |
-| `get_players` | Senior squad |
-| `get_player` | One player in full |
-| `get_matches` | Recent and upcoming matches |
-| `get_match` | Ratings, chances, tactics, events |
-| `get_match_lineup` | Lineup of a played match |
-| `get_training` | Training type, intensity, history |
-| `get_economy` | Finances |
-| `get_series` | League table |
-| `get_series_fixtures` | Series fixtures per season |
-| `get_staff` | Trainer and staff |
-| `get_arena` | Arena |
-| `get_youth_players` | Youth academy |
-| `search_transfers` | Transfer market search |
-| `login`, `complete_login` | Log in to Hattrick |
+The server exposes the whole CHPP read surface, grouped by area. Each tool collapses the "my" and "by ID" calls into one: omit the ID for your own team, series, match or youth data. Read results are cached for 5 minutes.
 
-Omit an ID to use your own team. Results are cached for 5 minutes.
+- Manager, team, club, region, achievements
+- Players: squad, details, events, transfer history, old players, hall of fame, avatars
+- Matches: fixtures, archive, details, lineup, orders, rating prediction, cup matches
+- League and world: series, fixtures, division levels, countries, translations
+- Economy: finances, fans, supporters
+- Training, staff, arena, and their league stats
+- Transfers: market search, current bids, team history
+- Youth: players, team, league, fixtures
+- Tournaments and national teams, including the world cup
+- Alliances (federations), bookmarks, ladders, live matches, general search
+
+### Write tools
+
+These change the live account. Each is marked destructive and does nothing until called again with `"confirm": true`. The scopes are requested at login.
+
+| Tool | Action |
+|---|---|
+| `set_match_orders` | Set lineup, orders and substitutions |
+| `set_training` | Change training type, intensity and stamina |
+| `place_bid` | Bid on a transfer-listed player (spends money) |
+| `ignore_transfer`, `delete_finished_bids` | Manage transfer tracking |
+| `set_youth_player_skills_visible`, `set_youth_team_skills_visible` | Reveal youth skill estimates |
+| `challenge`, `accept_challenge`, `decline_challenge`, `withdraw_challenge` | Arrange friendlies |
+| `add_live_match`, `delete_live_match`, `clear_live_matches` | Manage the live list |
 
 ## Development
 

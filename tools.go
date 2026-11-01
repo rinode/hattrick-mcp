@@ -3,57 +3,24 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/lucianoq/hattrick"
-	"github.com/lucianoq/hattrick/api"
 	"github.com/lucianoq/hattrick/chpp"
-	"github.com/lucianoq/hattrick/chpp/id"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // cacheTTL keeps repeated questions from hitting the CHPP servers.
 const cacheTTL = 5 * time.Minute
 
-const instructions = `Read-only access to the authorised manager's Hattrick.org data via CHPP.
+const instructions = `Access to the authorised manager's Hattrick.org data via CHPP.
 If a tool reports "not logged in", call login and then complete_login.
 Omit an ID argument to get the manager's own team, series or match data.
 Fields that are zero, false or empty are left out of results.
-Skill values read "name (n)" on the 0 (non-existent) to 20 (divine) scale. Money is in SEK; divide by 10 for EUR display.`
-
-type teamArgs struct {
-	TeamID id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own primary team"`
-}
-
-type playerArgs struct {
-	PlayerID id.Player `json:"player_id" jsonschema:"player ID"`
-}
-
-type matchArgs struct {
-	MatchID id.Match `json:"match_id" jsonschema:"match ID"`
-	Events  bool     `json:"events,omitempty" jsonschema:"include the match event list"`
-}
-
-type lineupArgs struct {
-	MatchID id.Match `json:"match_id" jsonschema:"match ID"`
-	TeamID  id.Team  `json:"team_id,omitempty" jsonschema:"team ID; omit for your own team"`
-}
-
-type seriesArgs struct {
-	SeriesID id.Series `json:"series_id,omitempty" jsonschema:"series (LeagueLevelUnit) ID; omit for your own series"`
-	Season   uint      `json:"season,omitempty" jsonschema:"season number; omit for the current season"`
-}
-
-type transferArgs struct {
-	AgeMin    uint            `json:"age_min" jsonschema:"minimum age in years (17 or more)"`
-	AgeMax    uint            `json:"age_max" jsonschema:"maximum age in years"`
-	SkillID   chpp.SkillID    `json:"skill_id" jsonschema:"1 keeper, 2 stamina, 3 set pieces, 4 defending, 5 scoring, 6 winger, 7 passing, 8 playmaking, 9 trainer, 10 leadership, 11 experience"`
-	SkillMin  chpp.SkillLevel `json:"skill_min" jsonschema:"minimum level of skill_id (0-20)"`
-	SkillMax  chpp.SkillLevel `json:"skill_max" jsonschema:"maximum level of skill_id (0-20)"`
-	PriceMax  chpp.Money      `json:"price_max,omitempty" jsonschema:"maximum current price in SEK"`
-	PageIndex uint            `json:"page_index,omitempty" jsonschema:"result page, starting at 0"`
-}
+Skill values read "name (n)" on the 0 (non-existent) to 20 (divine) scale. Money is in SEK; divide by 10 for EUR display.
+Tools whose name starts with set_, place_, unlock_, challenge, accept_, decline_, withdraw_, ignore_, delete_ or clear_ change the live account. They do nothing until called again with "confirm": true.`
 
 type loginArgs struct {
 	Code string `json:"code" jsonschema:"verification code Hattrick shows after granting access"`
@@ -81,88 +48,12 @@ func newServer(acct *account) *mcp.Server {
 			return text("Logged in."), nil, nil
 		})
 
-	add(s, acct, c, "get_team", "Team details: name, league, series, arena, trainer, fan club, form, team spirit and confidence.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyPrimaryTeam()
-			}
-			return ht.GetTeam(a.TeamID)
-		})
-	add(s, acct, c, "get_players", "Senior squad list with age, form, stamina, skills (own team), TSI, salary, specialty, injuries and cards.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyPlayers()
-			}
-			return ht.GetPlayers(a.TeamID)
-		})
-	add(s, acct, c, "get_player", "Full details of one player, including skills, transfer status and last match.",
-		func(ht hattrick.Client, a playerArgs) (any, error) { return ht.GetPlayerDetails(a.PlayerID, true) })
-	add(s, acct, c, "get_matches", "Recent and upcoming matches of a team.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyMatches()
-			}
-			return ht.GetMatches(a.TeamID)
-		})
-	add(s, acct, c, "get_match", "Match details: score, ratings per sector, possession, chances, tactics and optionally events.",
-		func(ht hattrick.Client, a matchArgs) (any, error) {
-			return ht.GetMatchDetails(a.MatchID, chpp.SourceSystemHattrickMainSystem, a.Events)
-		})
-	add(s, acct, c, "get_match_lineup", "Lineup a team used in a played match, with positions, behaviours and ratings.",
-		func(ht hattrick.Client, a lineupArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyMatchLineup(a.MatchID)
-			}
-			return ht.GetMatchLineup(a.MatchID, a.TeamID)
-		})
-	add(s, acct, c, "get_training", "Training type, intensity, stamina share, trainer and recent training history.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyTraining()
-			}
-			return ht.GetTraining(a.TeamID)
-		})
-	add(s, acct, c, "get_economy", "Your club finances: cash, weekly income and expenses, last week, fan mood and sponsors.",
-		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetFinancesForPrimaryTeam() })
-	add(s, acct, c, "get_series", "League table of a series.",
-		func(ht hattrick.Client, a seriesArgs) (any, error) {
-			if a.SeriesID == 0 {
-				return ht.GetMySeries()
-			}
-			return ht.GetSeries(a.SeriesID)
-		})
-	add(s, acct, c, "get_series_fixtures", "All fixtures and results of a series for a season.",
-		func(ht hattrick.Client, a seriesArgs) (any, error) {
-			switch {
-			case a.SeriesID == 0 && a.Season == 0:
-				return ht.GetMySeriesFixtures()
-			case a.SeriesID == 0:
-				return ht.GetMySeriesFixturesBySeason(a.Season)
-			case a.Season == 0:
-				return ht.GetSeriesFixtures(a.SeriesID)
-			}
-			return ht.GetSeriesFixturesBySeason(a.SeriesID, a.Season)
-		})
-	add(s, acct, c, "get_staff", "Your trainer and staff members with levels and salaries.",
-		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetMyStaff() })
-	add(s, acct, c, "get_arena", "Arena capacity per seat type, expansions and income.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
-				return ht.GetMyArena()
-			}
-			return ht.GetArenaByTeamID(a.TeamID)
-		})
-	add(s, acct, c, "get_youth_players", "Your youth academy players with known skills, potentials and last match.",
-		func(ht hattrick.Client, _ noArgs) (any, error) { return ht.GetMyYouthPlayersDetails(false, true) })
-	add(s, acct, c, "search_transfers", "Search the transfer market by age and one skill range.",
-		func(ht hattrick.Client, a transferArgs) (any, error) {
-			return ht.GetTransferSearch(a.AgeMin, a.AgeMax, a.SkillID, a.SkillMin, a.SkillMax,
-				api.TransferSearchFilters{PriceMax: a.PriceMax, PageIndex: a.PageIndex})
-		})
+	registerReads(s, acct, c)
+	registerWrites(s, acct)
 	return s
 }
 
-// add registers a read-only tool whose result is returned as compact JSON text.
+// add registers a read-only tool whose result is returned as compact JSON text and cached.
 func add[In any](s *mcp.Server, acct *account, c *cache, name, desc string, fn func(hattrick.Client, In) (any, error)) {
 	t := &mcp.Tool{Name: name, Description: desc, Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}
 	mcp.AddTool(s, t, func(_ context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
@@ -183,6 +74,50 @@ func add[In any](s *mcp.Server, acct *account, c *cache, name, desc string, fn f
 		}
 		return text(out), nil, nil
 	})
+}
+
+// addWrite registers a tool that changes the live account. It is marked destructive
+// and does nothing until the arguments carry "confirm": true.
+func addWrite[In any](s *mcp.Server, acct *account, name, desc string, fn func(hattrick.Client, In) (any, error)) {
+	destructive := true
+	t := &mcp.Tool{Name: name, Description: desc + ` Set "confirm": true to apply; without it the tool only reports what it would do.`,
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive}}
+	mcp.AddTool(s, t, func(_ context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+		if !confirmed(in) {
+			return text("Not applied. This changes the live Hattrick account. Call again with \"confirm\": true to apply."), nil, nil
+		}
+		ht, err := acct.client()
+		if err != nil {
+			return nil, nil, err
+		}
+		v, err := fn(ht, in)
+		if err != nil {
+			return nil, nil, err
+		}
+		b, err := json.Marshal(plain(v))
+		if err != nil {
+			return nil, nil, err
+		}
+		return text(string(b)), nil, nil
+	})
+}
+
+// confirmField is embedded in every write tool's arguments.
+type confirmField struct {
+	Confirm bool `json:"confirm,omitempty" jsonschema:"must be true to apply this change to the live account"`
+}
+
+func confirmed(in any) bool {
+	f := reflect.ValueOf(in).FieldByName("Confirm")
+	return f.IsValid() && f.Kind() == reflect.Bool && f.Bool()
+}
+
+// srcOr defaults an unset source system to the main Hattrick system.
+func srcOr(s chpp.SourceSystem) chpp.SourceSystem {
+	if s == "" {
+		return chpp.SourceSystemHattrickMainSystem
+	}
+	return s
 }
 
 func text(s string) *mcp.CallToolResult {
@@ -213,12 +148,12 @@ func (c *cache) get(name string, in any, load func() (string, error)) (string, e
 		return e.text, nil
 	}
 
-	text, err := load()
+	txt, err := load()
 	if err != nil {
 		return "", err
 	}
 	c.mu.Lock()
-	c.m[key] = cached{text, time.Now()}
+	c.m[key] = cached{txt, time.Now()}
 	c.mu.Unlock()
-	return text, nil
+	return txt, nil
 }

@@ -23,39 +23,64 @@ func connect(t *testing.T) *mcp.ClientSession {
 	return cs
 }
 
-func TestToolsList(t *testing.T) {
+// Every tool is either read-only, a destructive write, or one of the two login tools.
+func TestToolAnnotations(t *testing.T) {
 	res, err := connect(t).ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Tools) != 16 {
-		t.Errorf("got %d tools, want 16", len(res.Tools))
-	}
+	var reads, writes int
 	for _, tool := range res.Tools {
-		readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
-		if login := strings.Contains(tool.Name, "login"); readOnly == login {
-			t.Errorf("%s: read-only is %v", tool.Name, readOnly)
+		a := tool.Annotations
+		switch {
+		case tool.Name == "login" || tool.Name == "complete_login":
+			if a != nil && a.ReadOnlyHint {
+				t.Errorf("%s should not be read-only", tool.Name)
+			}
+		case a != nil && a.ReadOnlyHint:
+			reads++
+		case a != nil && a.DestructiveHint != nil && *a.DestructiveHint:
+			writes++
+		default:
+			t.Errorf("%s is neither read-only nor destructive", tool.Name)
 		}
+	}
+	if reads < 70 {
+		t.Errorf("got %d read tools, want at least 70", reads)
+	}
+	if writes != 14 {
+		t.Errorf("got %d write tools, want 14", writes)
 	}
 }
 
 func TestNotLoggedIn(t *testing.T) {
-	cs := connect(t)
-	for _, c := range []struct {
-		name string
-		args map[string]any
-		want string
-	}{
-		{"get_team", map[string]any{}, "not logged in"},
-		{"complete_login", map[string]any{"code": "x"}, "no login in progress"},
-	} {
-		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.name, Arguments: c.args})
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := res.Content[0].(*mcp.TextContent).Text
-		if !res.IsError || !strings.Contains(got, c.want) {
-			t.Errorf("%s: got %q, want an error containing %q", c.name, got, c.want)
-		}
+	res := call(t, "get_team", map[string]any{})
+	if !res.IsError || !strings.Contains(textOf(res), "not logged in") {
+		t.Errorf("get_team: got %q", textOf(res))
 	}
+}
+
+// A write tool does nothing until confirm is true, and the gate runs before the login check.
+func TestWriteNeedsConfirm(t *testing.T) {
+	res := call(t, "clear_live_matches", map[string]any{})
+	if res.IsError || !strings.Contains(textOf(res), "Not applied") {
+		t.Errorf("without confirm: got %q", textOf(res))
+	}
+	res = call(t, "clear_live_matches", map[string]any{"confirm": true})
+	if !res.IsError || !strings.Contains(textOf(res), "not logged in") {
+		t.Errorf("with confirm: got %q", textOf(res))
+	}
+}
+
+func call(t *testing.T, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func textOf(res *mcp.CallToolResult) string {
+	return res.Content[0].(*mcp.TextContent).Text
 }

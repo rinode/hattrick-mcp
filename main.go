@@ -125,12 +125,16 @@ func (a *account) client() (hattrick.Client, error) {
 	return a.ht, nil
 }
 
+// scopes are the write permissions requested at login. Read access needs none.
+var scopes = []string{"set_matchorder", "set_training", "place_bid", "manage_youthplayers", "manage_challenges"}
+
 // login starts the CHPP OAuth 1.0a out-of-band flow and returns the URL where the manager grants access.
 func (a *account) login() (string, error) {
 	req, url, err := newConsumer().GetRequestTokenAndUrl("oob")
 	if err != nil {
 		return "", err
 	}
+	url += "&scope=" + strings.Join(scopes, ",")
 	a.mu.Lock()
 	a.req = req
 	a.mu.Unlock()
