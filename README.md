@@ -67,6 +67,8 @@ With Go 1.26 or later: `go test ./...` and `go build .`.
 
 Pushing a `v*` tag builds the binaries, packs `hattrick-mcp.mcpb` and attaches it to a GitHub release, which the plugin installs from.
 
+`go.mod` replaces `github.com/lucianoq/hattrick` with a fork (`github.com/rinode/hattrick`) that fixes setting match orders and transfer search against live CHPP. The fixes are proposed upstream in [lucianoq/hattrick#1](https://github.com/lucianoq/hattrick/pull/1); drop the `replace` once they land.
+
 ## License
 
 Apache License 2.0
