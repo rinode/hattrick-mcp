@@ -15,6 +15,16 @@ type teamArgs struct {
 	TeamID id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own primary team"`
 }
 
+type teamLookupArgs struct {
+	TeamID id.Team `json:"team_id,omitempty" jsonschema:"team ID; omit for your own primary team"`
+	UserID id.User `json:"user_id,omitempty" jsonschema:"manager (user) ID to get that manager's primary team"`
+}
+
+type arenaArgs struct {
+	TeamID  id.Team  `json:"team_id,omitempty" jsonschema:"team ID; omit for your own arena"`
+	ArenaID id.Arena `json:"arena_id,omitempty" jsonschema:"arena ID (used instead of team_id)"`
+}
+
 type userArgs struct {
 	UserID id.User `json:"user_id,omitempty" jsonschema:"manager (user) ID; omit for yourself"`
 }
@@ -209,8 +219,9 @@ type allianceMembersArgs struct {
 }
 
 type searchFederationsArgs struct {
-	By         string      `json:"by,omitempty" jsonschema:"name (default), abbreviation or description"`
-	Query      string      `json:"query" jsonschema:"text to search for"`
+	By         string      `json:"by,omitempty" jsonschema:"name (default), abbreviation, description, or id"`
+	Query      string      `json:"query,omitempty" jsonschema:"text to search for (omit when by=id)"`
+	AllianceID id.Alliance `json:"alliance_id,omitempty" jsonschema:"alliance ID to fetch directly (used when by=id)"`
 	LanguageID id.Language `json:"language_id,omitempty" jsonschema:"language ID to search in"`
 	PageIndex  uint        `json:"page_index,omitempty" jsonschema:"result page, starting at 0"`
 }
@@ -289,8 +300,11 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 			return ht.GetManager(a.UserID)
 		})
 	add(s, acct, c, "get_team", "Team details: name, league, series, arena, trainer, fan club, form, team spirit and confidence.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
+		func(ht hattrick.Client, a teamLookupArgs) (any, error) {
+			switch {
+			case a.UserID != 0:
+				return ht.GetPrimaryTeamByUser(a.UserID)
+			case a.TeamID == 0:
 				return ht.GetMyPrimaryTeam()
 			}
 			return ht.GetTeam(a.TeamID)
@@ -579,8 +593,11 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 			return ht.GetStaff(a.TeamID)
 		})
 	add(s, acct, c, "get_arena", "Arena capacity per seat type, expansions and income.",
-		func(ht hattrick.Client, a teamArgs) (any, error) {
-			if a.TeamID == 0 {
+		func(ht hattrick.Client, a arenaArgs) (any, error) {
+			switch {
+			case a.ArenaID != 0:
+				return ht.GetArena(a.ArenaID)
+			case a.TeamID == 0:
 				return ht.GetMyArena()
 			}
 			return ht.GetArenaByTeamID(a.TeamID)
@@ -744,9 +761,11 @@ func registerReads(s *mcp.Server, acct *account, c *cache) {
 		})
 	add(s, acct, c, "get_alliance_roles", "Roles within an alliance.",
 		func(ht hattrick.Client, a allianceArgs) (any, error) { return ht.GetAllianceDetailsRoles(a.AllianceID) })
-	add(s, acct, c, "search_alliances", "Search alliances by name, abbreviation or description.",
+	add(s, acct, c, "search_alliances", "Search alliances by name, abbreviation or description, or fetch one by id.",
 		func(ht hattrick.Client, a searchFederationsArgs) (any, error) {
 			switch a.By {
+			case "id":
+				return ht.GetAlliance(a.AllianceID, a.LanguageID, a.PageIndex)
 			case "abbreviation":
 				return ht.GetAlliancesAbbreviationIncludes(a.Query, a.LanguageID, a.PageIndex)
 			case "description":

@@ -27,7 +27,7 @@ The consumer key comes from an approved [CHPP product license](https://www.hattr
 
 ## Tools
 
-The server exposes the whole CHPP read surface, grouped by area. Each tool collapses the "my" and "by ID" calls into one: omit the ID for your own team, series, match or youth data. Read results are cached for 5 minutes.
+The server exposes the whole CHPP API — 94 tools, every endpoint, with every parameter each method accepts. Read tools collapse the "my" and "by ID" calls into one: omit the ID for your own data. Read results are cached for 5 minutes.
 
 - Manager, team, club, region, achievements
 - Players: squad, details, events, transfer history, old players, hall of fame, avatars
@@ -38,7 +38,8 @@ The server exposes the whole CHPP read surface, grouped by area. Each tool colla
 - Transfers: market search, current bids, team history
 - Youth: players, team, league, fixtures
 - Tournaments and national teams, including the world cup
-- Alliances (federations), bookmarks, ladders, live matches, general search
+- Alliances (federations), bookmarks, ladders, live matches and events, general search
+- `search_transfers` takes the full filter set (age, age-days, up to four skill ranges, specialty, native country, TSI, price, paging)
 
 ### Write tools
 
@@ -46,7 +47,8 @@ These change the live account. Each is marked destructive and does nothing until
 
 | Tool | Action |
 |---|---|
-| `set_match_orders` | Set lineup, orders and substitutions |
+| `set_lineup` | Build a lineup from player IDs per position, with orders, substitutions, man-marking, captain, set-pieces and penalty takers; without `confirm` it previews predicted ratings |
+| `set_match_orders` | Set a lineup from a raw CHPP lineup JSON |
 | `set_training` | Change training type, intensity and stamina |
 | `place_bid` | Bid on a transfer-listed player (spends money) |
 | `ignore_transfer`, `delete_finished_bids` | Manage transfer tracking |
@@ -67,7 +69,7 @@ With Go 1.26 or later: `go test ./...` and `go build .`.
 
 Pushing a `v*` tag builds the binaries, packs `hattrick-mcp.mcpb` and attaches it to a GitHub release, which the plugin installs from.
 
-`go.mod` replaces `github.com/lucianoq/hattrick` with a fork (`github.com/rinode/hattrick`) that fixes setting match orders and transfer search against live CHPP. The fixes are proposed upstream in [lucianoq/hattrick#1](https://github.com/lucianoq/hattrick/pull/1); drop the `replace` once they land.
+`go.mod` replaces `github.com/lucianoq/hattrick` with a fork (`github.com/rinode/hattrick`) that fixes five bugs against live CHPP: the match-orders POST signing and lineup JSON format, the match-orders response `NewPositionId`, transfer-search `ItemCount`, and case-sensitive file-name decoding. The fixes are proposed upstream in [lucianoq/hattrick#1](https://github.com/lucianoq/hattrick/pull/1); drop the `replace` once they land.
 
 ## License
 
