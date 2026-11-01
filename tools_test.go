@@ -48,8 +48,8 @@ func TestToolAnnotations(t *testing.T) {
 	if reads < 70 {
 		t.Errorf("got %d read tools, want at least 70", reads)
 	}
-	if writes != 14 {
-		t.Errorf("got %d write tools, want 14", writes)
+	if writes != 15 {
+		t.Errorf("got %d write tools, want 15", writes)
 	}
 }
 

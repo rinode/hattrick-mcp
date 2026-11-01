@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/lucianoq/hattrick"
 	"github.com/lucianoq/hattrick/chpp"
 	"github.com/lucianoq/hattrick/chpp/id"
@@ -18,7 +21,7 @@ type setMatchOrdersArgs struct {
 type setTrainingArgs struct {
 	confirmField
 	TeamID       id.Team           `json:"team_id" jsonschema:"your team ID"`
-	TrainingType chpp.TrainingType `json:"training_type" jsonschema:"2 set pieces, 3 defending, 4 scoring, 5 winger, 6 scoring+set pieces, 7 playmaking, 8 goalkeeping, 9 passing, 10 crossing, 11 shooting, 12 through passes, 13 defensive positions"`
+	TrainingType chpp.TrainingType `json:"training_type" jsonschema:"2 set pieces, 3 defending, 4 scoring, 5 winger, 6 scoring+set pieces, 7 passing, 8 playmaking, 9 keeper, 10 passing (def+mid), 11 defending (def+mid), 12 winger+attackers"`
 	Level        uint              `json:"level" jsonschema:"training intensity percentage (0-100)"`
 	StaminaLevel uint              `json:"stamina_level" jsonschema:"stamina share percentage (0-100)"`
 }
@@ -83,8 +86,110 @@ type confirmOnly struct {
 	confirmField
 }
 
+type setLineupArgs struct {
+	confirmField
+	MatchID      id.Match          `json:"match_id" jsonschema:"match ID"`
+	TeamID       id.Team           `json:"team_id" jsonschema:"your team ID for this match"`
+	SourceSystem chpp.SourceSystem `json:"source_system,omitempty" jsonschema:"hattrick (default), youth or htointegrated"`
+
+	Goalkeeper           id.Player `json:"goalkeeper,omitempty" jsonschema:"player ID in goal"`
+	RightBack            id.Player `json:"right_back,omitempty" jsonschema:"player ID at right wing back"`
+	RightCentralDefender id.Player `json:"right_central_defender,omitempty" jsonschema:"player ID at right central defender"`
+	CentralDefender      id.Player `json:"central_defender,omitempty" jsonschema:"player ID at middle central defender"`
+	LeftCentralDefender  id.Player `json:"left_central_defender,omitempty" jsonschema:"player ID at left central defender"`
+	LeftBack             id.Player `json:"left_back,omitempty" jsonschema:"player ID at left wing back"`
+	RightWinger          id.Player `json:"right_winger,omitempty" jsonschema:"player ID at right winger"`
+	RightInnerMid        id.Player `json:"right_inner_mid,omitempty" jsonschema:"player ID at right inner midfielder"`
+	CentralInnerMid      id.Player `json:"central_inner_mid,omitempty" jsonschema:"player ID at middle inner midfielder"`
+	LeftInnerMid         id.Player `json:"left_inner_mid,omitempty" jsonschema:"player ID at left inner midfielder"`
+	LeftWinger           id.Player `json:"left_winger,omitempty" jsonschema:"player ID at left winger"`
+	RightForward         id.Player `json:"right_forward,omitempty" jsonschema:"player ID at right forward"`
+	CentralForward       id.Player `json:"central_forward,omitempty" jsonschema:"player ID at middle forward"`
+	LeftForward          id.Player `json:"left_forward,omitempty" jsonschema:"player ID at left forward"`
+
+	Behaviours map[string]int `json:"behaviours,omitempty" jsonschema:"optional per-position behaviour by position name: 0 normal, 1 offensive, 2 defensive, 3 towards middle, 4 towards wing, 5 extra forward, 6 extra inner mid, 7 extra defender"`
+
+	BenchGoalkeeper      id.Player `json:"bench_goalkeeper,omitempty" jsonschema:"substitute goalkeeper"`
+	BenchCentralDefender id.Player `json:"bench_central_defender,omitempty" jsonschema:"substitute central defender"`
+	BenchWingBack        id.Player `json:"bench_wing_back,omitempty" jsonschema:"substitute wing back"`
+	BenchInnerMid        id.Player `json:"bench_inner_mid,omitempty" jsonschema:"substitute inner midfielder"`
+	BenchForward         id.Player `json:"bench_forward,omitempty" jsonschema:"substitute forward"`
+	BenchWinger          id.Player `json:"bench_winger,omitempty" jsonschema:"substitute winger"`
+	BenchExtra           id.Player `json:"bench_extra,omitempty" jsonschema:"extra substitute"`
+
+	Captain        id.Player              `json:"captain,omitempty" jsonschema:"captain player ID"`
+	SetPiecesTaker id.Player              `json:"set_pieces_taker,omitempty" jsonschema:"set-pieces taker player ID"`
+	Tactic         chpp.MatchTacticType   `json:"tactic,omitempty" jsonschema:"0 normal, 1 pressing, 2 counter-attacks, 3 attack in the middle, 4 attack in wings, 7 play creatively, 8 long shots"`
+	Attitude       chpp.MatchTeamAttitude `json:"attitude,omitempty" jsonschema:"-1 play it cool, 0 normal, 1 match of the season"`
+}
+
+func buildLineup(a setLineupArgs) (string, error) {
+	b := a.Behaviours
+	pb := func(p id.Player, key string) chpp.PlayerIDBehaviour {
+		return chpp.PlayerIDBehaviour{Player: p, Behaviour: chpp.MatchBehaviourID(b[key])}
+	}
+	fs := chpp.LineupFirstStringPlayers{
+		Goalkeeper:             pb(a.Goalkeeper, "goalkeeper"),
+		RightDefender:          pb(a.RightBack, "right_back"),
+		RightCentralDefender:   pb(a.RightCentralDefender, "right_central_defender"),
+		CentralDefender:        pb(a.CentralDefender, "central_defender"),
+		LeftCentralDefender:    pb(a.LeftCentralDefender, "left_central_defender"),
+		LeftDefender:           pb(a.LeftBack, "left_back"),
+		RightWinger:            pb(a.RightWinger, "right_winger"),
+		RightInnerMidfielder:   pb(a.RightInnerMid, "right_inner_mid"),
+		CentralInnerMidfielder: pb(a.CentralInnerMid, "central_inner_mid"),
+		LeftInnerMidfielder:    pb(a.LeftInnerMid, "left_inner_mid"),
+		LeftWinger:             pb(a.LeftWinger, "left_winger"),
+		RightForward:           pb(a.RightForward, "right_forward"),
+		CentralForward:         pb(a.CentralForward, "central_forward"),
+		LeftForward:            pb(a.LeftForward, "left_forward"),
+	}
+	bench := chpp.LineupBenchPlayers{Primary: chpp.LineupBenchSlots{
+		Goalkeeper:      a.BenchGoalkeeper,
+		CentralDefender: a.BenchCentralDefender,
+		WingBack:        a.BenchWingBack,
+		InnerMidfielder: a.BenchInnerMid,
+		Forward:         a.BenchForward,
+		Winger:          a.BenchWinger,
+		Extra:           a.BenchExtra,
+	}}
+	return chpp.NewLineup(fs, bench, [11]id.Player{}, a.Captain, a.SetPiecesTaker,
+		a.Tactic, a.Attitude, chpp.CoachModifier(0), 0, 0, nil)
+}
+
 func registerWrites(s *mcp.Server, acct *account) {
-	addWrite(s, acct, "set_match_orders", "Set the lineup, positions, orders and substitutions for an upcoming match.",
+	destructive := true
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "set_lineup",
+		Description: `Set the match lineup from player IDs per position. Without "confirm": true it previews the predicted ratings without saving; with it, it saves the orders.`,
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive},
+	}, func(_ context.Context, _ *mcp.CallToolRequest, a setLineupArgs) (*mcp.CallToolResult, any, error) {
+		ht, err := acct.client()
+		if err != nil {
+			return nil, nil, err
+		}
+		lineup, err := buildLineup(a)
+		if err != nil {
+			return nil, nil, err
+		}
+		var res any
+		if a.Confirm {
+			res, err = ht.SetMatchOrders(a.MatchID, a.TeamID, srcOr(a.SourceSystem), lineup)
+		} else {
+			res, err = ht.PredictRatings(a.MatchID, a.TeamID, srcOr(a.SourceSystem), lineup)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		out := map[string]any{"saved": a.Confirm, "result": plain(res)}
+		jb, err := json.Marshal(out)
+		if err != nil {
+			return nil, nil, err
+		}
+		return text(string(jb)), nil, nil
+	})
+
+	addWrite(s, acct, "set_match_orders", "Set a match lineup from a raw CHPP matchorders lineup JSON. Prefer set_lineup unless you already have the JSON.",
 		func(ht hattrick.Client, a setMatchOrdersArgs) (any, error) {
 			return ht.SetMatchOrders(a.MatchID, a.TeamID, srcOr(a.SourceSystem), a.Lineup)
 		})
