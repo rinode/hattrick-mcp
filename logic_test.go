@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -150,6 +151,26 @@ func TestConfirmed(t *testing.T) {
 	}
 	if confirmed(struct{ X int }{X: 1}) {
 		t.Errorf("struct without Confirm should be false")
+	}
+}
+
+func TestFriendlyErr(t *testing.T) {
+	if friendlyErr(nil) != nil {
+		t.Errorf("nil should stay nil")
+	}
+	// A known code gets a readable hint.
+	e := friendlyErr(errors.New(" (54) Additional Info: null"))
+	if !strings.Contains(e.Error(), "youth team") || !strings.Contains(e.Error(), "54") {
+		t.Errorf("code 54 not translated: %v", e)
+	}
+	// An unknown code is left as-is.
+	orig := errors.New("(1234) something odd")
+	if friendlyErr(orig).Error() != orig.Error() {
+		t.Errorf("unknown code should pass through unchanged")
+	}
+	// An error without a code is left as-is.
+	if friendlyErr(errors.New("not logged in")).Error() != "not logged in" {
+		t.Errorf("non-CHPP error should pass through")
 	}
 }
 

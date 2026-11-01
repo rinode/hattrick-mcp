@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"regexp"
 	"sync"
 	"time"
 
@@ -70,7 +72,7 @@ func add[In any](s *mcp.Server, acct *account, c *cache, name, desc string, fn f
 			return string(b), err
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, friendlyErr(err)
 		}
 		return text(out), nil, nil
 	})
@@ -92,7 +94,7 @@ func addWrite[In any](s *mcp.Server, acct *account, name, desc string, fn func(h
 		}
 		v, err := fn(ht, in)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, friendlyErr(err)
 		}
 		b, err := json.Marshal(plain(v))
 		if err != nil {
@@ -100,6 +102,32 @@ func addWrite[In any](s *mcp.Server, acct *account, name, desc string, fn func(h
 		}
 		return text(string(b)), nil, nil
 	})
+}
+
+// chppCode matches the leading "(NN)" error code CHPP puts in its messages.
+var chppCode = regexp.MustCompile(`\((\d+)\)`)
+
+// chppErrorHints turns the most common CHPP error codes into a readable hint.
+var chppErrorHints = map[string]string{
+	"10": "invalid parameter — check the arguments",
+	"50": "not found",
+	"54": "no youth team yet — create one in Hattrick first",
+	"58": "no youth league yet",
+	"70": "not logged in or the access token was revoked — run login again",
+	"99": "not authorised, or required parameters are missing (you may need to own or belong to this)",
+}
+
+// friendlyErr prepends a readable explanation to a known CHPP error code.
+func friendlyErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if m := chppCode.FindStringSubmatch(err.Error()); m != nil {
+		if hint, ok := chppErrorHints[m[1]]; ok {
+			return fmt.Errorf("%s (CHPP error %s)", hint, m[1])
+		}
+	}
+	return err
 }
 
 // confirmField is embedded in every write tool's arguments.

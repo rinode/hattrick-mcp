@@ -236,7 +236,7 @@ func registerWrites(s *mcp.Server, acct *account) {
 			res, err = ht.PredictRatings(a.MatchID, a.TeamID, srcOr(a.SourceSystem), lineup)
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, friendlyErr(err)
 		}
 		out := map[string]any{"saved": a.Confirm, "result": plain(res)}
 		jb, err := json.Marshal(out)
