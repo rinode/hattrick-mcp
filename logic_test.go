@@ -89,9 +89,16 @@ func TestPlainConversion(t *testing.T) {
 	if s, ok := skill.(string); !ok || !strings.Contains(s, "(8)") {
 		t.Errorf("skill = %v, want string containing (8)", skill)
 	}
-	// Zero value dropped.
-	if plain(chpp.SkillLevel(0)) != nil {
-		t.Errorf("zero skill should be dropped")
+	// Numeric zeros are kept.
+	if s, ok := plain(chpp.SkillLevel(0)).(string); !ok || !strings.Contains(s, "(0)") {
+		t.Errorf("zero skill = %v, want string containing (0)", plain(chpp.SkillLevel(0)))
+	}
+	if plain(0) != 0 {
+		t.Errorf("zero int = %v, want 0", plain(0))
+	}
+	// Empty strings and unset dates are dropped.
+	if plain("") != nil || plain(chpp.HattrickTime{}) != nil {
+		t.Errorf("empty string or zero date not dropped")
 	}
 	// Booleans are kept, including false (a false flag is real information).
 	if plain(false) != false {
@@ -104,10 +111,11 @@ func TestPlainConversion(t *testing.T) {
 	if m, ok := plain(chpp.Money(2500)).(chpp.Money); !ok || m != 2500 {
 		t.Errorf("money = %v, want chpp.Money(2500)", plain(chpp.Money(2500)))
 	}
-	// Struct: exported non-zero fields kept, zero fields dropped.
+	// Struct: numeric zeros kept, empty strings dropped.
 	type sample struct {
 		Skill chpp.SkillLevel
-		Empty int
+		Goals int
+		Empty string
 	}
 	out, ok := plain(sample{Skill: 8}).(map[string]any)
 	if !ok {
@@ -116,8 +124,11 @@ func TestPlainConversion(t *testing.T) {
 	if _, has := out["Skill"]; !has {
 		t.Errorf("Skill field dropped")
 	}
+	if out["Goals"] != 0 {
+		t.Errorf("Goals = %v, want 0", out["Goals"])
+	}
 	if _, has := out["Empty"]; has {
-		t.Errorf("zero Empty field should be dropped")
+		t.Errorf("empty string field should be dropped")
 	}
 }
 

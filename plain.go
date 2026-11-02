@@ -14,7 +14,7 @@ var (
 )
 
 // plain converts CHPP values into JSON-friendly data for a language model:
-// enums become "name (n)", times become strings, and zero values are dropped.
+// enums become "name (n)", times become strings, and empty values are dropped.
 // chpp types carry only XML tags, and HattrickTime has no JSON encoding.
 func plain(v any) any {
 	return convert(reflect.ValueOf(v))
@@ -30,12 +30,11 @@ func convert(v reflect.Value) any {
 		}
 		return convert(v.Elem())
 	}
-	// Keep booleans even when false: a false flag is real information, unlike
-	// an empty string or a zero number.
+	// Keep false and numeric zeros: a 0-0 score or 0 points is real information.
 	if v.Kind() == reflect.Bool {
 		return v.Bool()
 	}
-	if v.IsZero() {
+	if v.IsZero() && !v.CanInt() && !v.CanUint() && !v.CanFloat() {
 		return nil
 	}
 	if v.Type() == moneyType || v.Type() == tsiType {

@@ -25,7 +25,7 @@ var chppLimiter = rate.NewLimiter(rate.Every(150*time.Millisecond), 10)
 const instructions = `Access to the authorised manager's Hattrick.org data via CHPP.
 If a tool reports "not logged in", call login and then complete_login.
 Omit an ID argument to get the manager's own team, series or match data.
-Fields that are zero, false or empty are left out of results.
+Empty strings, lists and unset dates are left out of results; numeric zeros and false are kept.
 Skill values read "name (n)" on the 0 (non-existent) to 20 (divine) scale. Money is in SEK; divide by 10 for EUR display.
 Tools whose name starts with set_, place_, unlock_, challenge, accept_, decline_, withdraw_, ignore_, delete_ or clear_ change the live account. They do nothing until called again with "confirm": true.`
 
