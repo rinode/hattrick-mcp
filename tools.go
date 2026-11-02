@@ -12,10 +12,15 @@ import (
 	"github.com/lucianoq/hattrick"
 	"github.com/lucianoq/hattrick/chpp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/time/rate"
 )
 
 // cacheTTL keeps repeated questions from hitting the CHPP servers.
 const cacheTTL = 5 * time.Minute
+
+// chppLimiter throttles live CHPP calls so a hosted server stays a good citizen
+// (CHPP rate-limits bursty clients). Cached reads don't count against it.
+var chppLimiter = rate.NewLimiter(rate.Every(150*time.Millisecond), 10)
 
 const instructions = `Access to the authorised manager's Hattrick.org data via CHPP.
 If a tool reports "not logged in", call login and then complete_login.
@@ -58,12 +63,15 @@ func newServer(acct *account) *mcp.Server {
 // add registers a read-only tool whose result is returned as compact JSON text and cached.
 func add[In any](s *mcp.Server, acct *account, c *cache, name, desc string, fn func(hattrick.Client, In) (any, error)) {
 	t := &mcp.Tool{Name: name, Description: desc, Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}
-	mcp.AddTool(s, t, func(_ context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(s, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		ht, err := acct.client()
 		if err != nil {
 			return nil, nil, err
 		}
 		out, err := c.get(name, in, func() (string, error) {
+			if err := chppLimiter.Wait(ctx); err != nil {
+				return "", err
+			}
 			v, err := fn(ht, in)
 			if err != nil {
 				return "", err
@@ -84,12 +92,15 @@ func addWrite[In any](s *mcp.Server, acct *account, name, desc string, fn func(h
 	destructive := true
 	t := &mcp.Tool{Name: name, Description: desc + ` Set "confirm": true to apply; without it the tool only reports what it would do.`,
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive}}
-	mcp.AddTool(s, t, func(_ context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(s, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		if !confirmed(in) {
 			return text("Not applied. This changes the live Hattrick account. Call again with \"confirm\": true to apply."), nil, nil
 		}
 		ht, err := acct.client()
 		if err != nil {
+			return nil, nil, err
+		}
+		if err := chppLimiter.Wait(ctx); err != nil {
 			return nil, nil, err
 		}
 		v, err := fn(ht, in)

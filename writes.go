@@ -220,13 +220,16 @@ func registerWrites(s *mcp.Server, acct *account) {
 		Name:        "set_lineup",
 		Description: `Set the match lineup from player IDs per position. Without "confirm": true it previews the predicted ratings without saving; with it, it saves the orders.`,
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive},
-	}, func(_ context.Context, _ *mcp.CallToolRequest, a setLineupArgs) (*mcp.CallToolResult, any, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, a setLineupArgs) (*mcp.CallToolResult, any, error) {
 		ht, err := acct.client()
 		if err != nil {
 			return nil, nil, err
 		}
 		lineup, err := buildLineup(a)
 		if err != nil {
+			return nil, nil, err
+		}
+		if err := chppLimiter.Wait(ctx); err != nil {
 			return nil, nil, err
 		}
 		var res any
