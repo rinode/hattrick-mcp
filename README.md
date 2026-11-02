@@ -73,6 +73,8 @@ The server listens on `:8080` (`HATTRICK_MCP_ADDR` to change it): `/` is the MCP
 
 Single-user only: it serves one manager's data (the logged-in token), so give the endpoint and token only to yourself.
 
+A ready-to-edit **fly.io** config is in [`deploy/fly.toml`](deploy/fly.toml) — it builds the image, runs the `http` process with TLS, health-checks `/healthz`, and persists the login token on a volume. Set the consumer key/secret and `HATTRICK_MCP_TOKEN` as fly secrets, deploy, then add `https://<app>.fly.dev/` as an MCP connector and call the `login` tool once.
+
 ## Development
 
 Docker is only needed for development. Put `HATTRICK_CONSUMER_KEY` and `HATTRICK_CONSUMER_SECRET` in `.env`.
