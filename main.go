@@ -89,7 +89,8 @@ func serveHTTP(path string) error {
 		return err
 	}
 
-	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return newServer(a) }, nil)
+	c := newCache()
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return newServer(a, c) }, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.Handle("/", bearerAuth(token, handler))
@@ -237,5 +238,5 @@ func serve(path string) error {
 	if err != nil {
 		return err
 	}
-	return newServer(a).Run(context.Background(), &mcp.StdioTransport{})
+	return newServer(a, newCache()).Run(context.Background(), &mcp.StdioTransport{})
 }

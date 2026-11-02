@@ -35,9 +35,12 @@ type loginArgs struct {
 
 type noArgs struct{}
 
-func newServer(acct *account) *mcp.Server {
+func newCache() *cache { return &cache{m: map[string]cached{}} }
+
+// newServer builds the MCP server. The cache is passed in (not created here) so
+// it can be shared across requests when the server is rebuilt per HTTP request.
+func newServer(acct *account, c *cache) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "hattrick-mcp", Version: version}, &mcp.ServerOptions{Instructions: instructions})
-	c := &cache{m: map[string]cached{}}
 
 	mcp.AddTool(s, &mcp.Tool{Name: "login", Description: "Start the Hattrick login. Returns a URL where the manager grants access and gets a verification code; then call complete_login with that code."},
 		func(context.Context, *mcp.CallToolRequest, noArgs) (*mcp.CallToolResult, any, error) {

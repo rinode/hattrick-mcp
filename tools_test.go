@@ -47,7 +47,7 @@ func connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 	st, ct := mcp.NewInMemoryTransports()
-	if _, err := newServer(&account{}).Connect(ctx, st, nil); err != nil {
+	if _, err := newServer(&account{}, newCache()).Connect(ctx, st, nil); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, ct, nil)
