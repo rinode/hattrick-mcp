@@ -1,5 +1,5 @@
 app = 'hattrick-mcp'
-primary_region = 'iad'
+primary_region = 'ams'
 
 [build]
 
