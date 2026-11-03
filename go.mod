@@ -1,12 +1,12 @@
 module github.com/rinode/hattrick-mcp
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/lucianoq/hattrick v0.0.0-20260828225015-7b09b3c550ba
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/mrjones/oauth v0.0.0-20190623134757-126b35219450
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 )
 
 require (
