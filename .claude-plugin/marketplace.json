@@ -1,0 +1,24 @@
+{
+  "name": "hattrick-mcp",
+  "description": "Hattrick.org live data and game rules for Claude",
+  "owner": {
+    "name": "rinode",
+    "url": "https://github.com/rinode"
+  },
+  "plugins": [
+    {
+      "name": "hattrick-mcp",
+      "source": "./plugin",
+      "description": "Read-only Hattrick CHPP data: your team, players, matches, training, economy and transfers"
+    },
+    {
+      "name": "hattrick-context-pack",
+      "source": {
+        "source": "git-subdir",
+        "url": "rmagasi/hattrick-context-pack",
+        "path": "plugins/hattrick-context-pack"
+      },
+      "description": "Hattrick game rules: training, tactics, economy and youth, maintained upstream by rmagasi"
+    }
+  ]
+}
